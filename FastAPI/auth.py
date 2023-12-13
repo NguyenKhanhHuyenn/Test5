@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from starlette import status
 from database import SessionLocal
 from models import User, Profile
-from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 
@@ -18,7 +17,6 @@ router = APIRouter(
 SECRET_KEY = 'e5cbb89fb62e43b61c183867934252e3'
 ALGORITHM = 'HS256'
 
-bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 o2auth_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
 
 class CreateUserRequest(BaseModel):
@@ -39,7 +37,6 @@ class CreateProfileRequest(BaseModel):
     nganh: str
     GPA: float
     GVphutrach: str
-
 
 class UpdateProfileRequest(BaseModel):
     hoten: str
@@ -74,13 +71,13 @@ db_dependency = Annotated[Session, Depends(get_db)]
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest):
     create_user_model = User(
         username=create_user_request.MSV,
-        hashed_password=bcrypt_context.hash(create_user_request.password),
+        password=create_user_request.password,
         role=create_user_request.role  # Set the role from the request
     )
     db.add(create_user_model)
     db.commit()
 
-@router.post("/token", response_model=Token)
+@router.post("/token/", response_model=Token)
 async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
@@ -149,9 +146,9 @@ async def add_profile(
         gioitinh=profile_data['gioitinh'],
         khoa=profile_data['khoa'],
         nganh=profile_data['nganh'],
-        gpa=profile_data['GPA'],  
-        gvphutrach=profile_data['GVphutrach']  
-)
+        gpa=profile_data['GPA'],
+        gvphutrach=profile_data['GVphutrach']
+    )
     db.add(new_profile)
     db.commit()
 
@@ -218,12 +215,9 @@ async def delete_profile(
 
     return {'message': 'Profile deleted successfully.'}
 
-
 def authenticate_user(username: str, password: str, db):
-    user = db.query(User).filter(User.username == username).first()
+    user = db.query(User).filter(User.username == username, User.password == password).first()
     if not user:
-        return False
-    if not bcrypt_context.verify(password, user.hashed_password):
         return False
     return user
 
